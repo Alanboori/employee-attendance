@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Panel - Attendance Records</title>
+    <script type="module">
+      import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+      const SUPABASE_URL = "https://qxpdhbeewuvjvleovtpf.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "sb_publishable_X37K3uDPAQjtYxX1dH0rZw_GPWX8qmv";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        // Check if user is logged in and admin
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (!user || error) {
+          window.location.href = "index.html";
+          return;
+        }
+
+        if (user.email !== "email") {
+          // add here admin emails!!
+          alert("Access denied: Admins only");
+          window.location.href = "index.html";
+          return;
+        }
+
+        document.getElementById("adminEmail").textContent = user.email;
+
+        // Fetch all attendance records
+        const { data: records, error: fetchError } = await supabase
+          .from("attendance_records")
+          .select("*")
+          .order("timestamp", { ascending: false });
+
+        if (fetchError) {
+          document.getElementById(
+            "records"
+          ).innerHTML = `<tr><td colspan="5" class="error">Error loading records: ${fetchError.message}</td></tr>`;
+          return;
+        }
+
+        if (!records.length) {
+          document.getElementById(
+            "records"
+          ).innerHTML = `<tr><td colspan="5">No attendance records found.</td></tr>`;
+          return;
+        }
+
+        // Build table rows
+        const rowsHtml = records
+          .map(
+            (r) => `
+          <tr>
+            <td>${r.user_email}</td>
+            <td class="capitalize">${r.type}</td>
+            <td>${new Date(r.timestamp).toLocaleString()}</td>
+            <td>${r.latitude?.toFixed(6) ?? "-"}</td>
+            <td>${r.longitude?.toFixed(6) ?? "-"}</td>
+          </tr>
+        `
+          )
+          .join("");
+
+        document.getElementById("records").innerHTML = rowsHtml;
+
+        // Logout button handler
+        document.getElementById("logoutBtn").onclick = async () => {
+          await supabase.auth.signOut();
+          window.location.href = "index.html";
+        };
+      });
+    </script>
+    <style>
+      /* Reset */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        padding: 30px 15px;
+        color: #333;
+      }
+
+      .container {
+        background: #fff;
+        max-width: 960px;
+        width: 100%;
+        border-radius: 16px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+        padding: 30px 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      header h1 {
+        font-weight: 700;
+        font-size: 1.8rem;
+        color: #4a63e9;
+      }
+
+      .user-info {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #667eea;
+      }
+
+      button#logoutBtn {
+        background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        color: white;
+        font-weight: 700;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 6px 16px rgba(245, 101, 101, 0.3);
+      }
+      button#logoutBtn:hover {
+        background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+        box-shadow: 0 10px 24px rgba(197, 48, 48, 0.5);
+        transform: translateY(-2px);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.15);
+        background: #fff;
+        max-height: 500px;
+        display: block;
+        overflow-y: auto;
+      }
+
+      thead tr {
+        background-color: #4a63e9;
+        color: white;
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+      }
+
+      tbody {
+        display: block;
+        max-height: 400px;
+        overflow-y: auto;
+        width: 100%;
+      }
+
+      tbody tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+        transition: background-color 0.2s ease;
+        cursor: default;
+      }
+
+      tbody tr:hover {
+        background-color: #f0f4ff;
+      }
+
+      th,
+      td {
+        padding: 12px 15px;
+        text-align: center;
+        border-bottom: 1px solid #eee;
+        word-break: break-word;
+      }
+
+      th {
+        font-weight: 700;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      td.capitalize {
+        text-transform: capitalize;
+      }
+
+      /* Responsive */
+      @media (max-width: 720px) {
+        table,
+        thead,
+        tbody,
+        th,
+        td,
+        tr {
+          display: block;
+        }
+
+        thead tr {
+          display: none;
+        }
+
+        tbody tr {
+          margin-bottom: 15px;
+          border-radius: 12px;
+          box-shadow: 0 10px 20px rgba(102, 126, 234, 0.1);
+          padding: 15px 20px;
+          background: white;
+        }
+
+        tbody tr td {
+          text-align: right;
+          padding-left: 50%;
+          position: relative;
+          border: none;
+          border-bottom: 1px solid #eee;
+        }
+
+        tbody tr td::before {
+          content: attr(data-label);
+          position: absolute;
+          left: 15px;
+          width: 45%;
+          padding-left: 15px;
+          font-weight: 700;
+          text-align: left;
+          color: #667eea;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main
+      class="container"
+      role="main"
+      aria-label="Admin panel with attendance records"
+    >
+      <header>
+        <h1>🗂️ Admin Panel</h1>
+        <div class="user-info" aria-live="polite">
+          Logged in as: <strong id="adminEmail">Loading...</strong>
+        </div>
+        <button id="logoutBtn" aria-label="Logout">Logout</button>
+      </header>
+
+      <section aria-label="Attendance records table">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">User Email</th>
+              <th scope="col">Type</th>
+              <th scope="col">Timestamp</th>
+              <th scope="col">Latitude</th>
+              <th scope="col">Longitude</th>
+            </tr>
+          </thead>
+          <tbody id="records">
+            <tr>
+              <td colspan="5">Loading records...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

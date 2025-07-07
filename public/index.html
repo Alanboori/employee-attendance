@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome - Sign In</title>
+    <script type="module">
+      import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+      const SUPABASE_URL = "https://qxpdhbeewuvjvleovtpf.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "sb_publishable_X37K3uDPAQjtYxX1dH0rZw_GPWX8qmv";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      window.addEventListener("DOMContentLoaded", () => {
+        const loginTab = document.getElementById("loginTab");
+        const signupTab = document.getElementById("signupTab");
+        const loginForm = document.getElementById("loginForm");
+        const signupForm = document.getElementById("signupForm");
+        const loginSubmit = document.getElementById("loginSubmit");
+        const signupSubmit = document.getElementById("signupSubmit");
+        const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+        const messageDiv = document.getElementById("message");
+        const toggleIcons = document.querySelectorAll(".toggle-password");
+
+        let isLogin = true;
+
+        // Tab switching
+        loginTab.addEventListener("click", () => {
+          isLogin = true;
+          loginTab.classList.add("active");
+          signupTab.classList.remove("active");
+          loginForm.style.display = "block";
+          signupForm.style.display = "none";
+          clearMessage();
+        });
+
+        signupTab.addEventListener("click", () => {
+          isLogin = false;
+          signupTab.classList.add("active");
+          loginTab.classList.remove("active");
+          signupForm.style.display = "block";
+          loginForm.style.display = "none";
+          clearMessage();
+        });
+
+        // Password visibility toggle
+        toggleIcons.forEach((icon) => {
+          icon.addEventListener("click", () => {
+            const input = document.getElementById(icon.dataset.target);
+            if (input.type === "password") {
+              input.type = "text";
+              icon.innerHTML = "🙈";
+            } else {
+              input.type = "password";
+              icon.innerHTML = "👁️";
+            }
+          });
+        });
+
+        // Login form submission
+        loginSubmit.addEventListener("click", async () => {
+          const email = document.getElementById("loginEmail").value.trim();
+          const password = document
+            .getElementById("loginPassword")
+            .value.trim();
+
+          if (!email || !password) {
+            showMessage("Please fill in all fields", "error");
+            return;
+          }
+
+          if (!isValidEmail(email)) {
+            showMessage("Please enter a valid email address", "error");
+            return;
+          }
+
+          loginSubmit.disabled = true;
+          loginSubmit.innerHTML = '<span class="spinner"></span> Signing in...';
+          showMessage("Signing you in...", "info");
+
+          try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+
+            if (error) throw error;
+
+            showMessage(
+              `Welcome back, ${data.user.email}! Redirecting...`,
+              "success"
+            );
+            setTimeout(() => {
+              window.location.href = "dashboard.html";
+            }, 1500);
+          } catch (error) {
+            showMessage(error.message, "error");
+          } finally {
+            loginSubmit.disabled = false;
+            loginSubmit.innerHTML = "Sign In";
+          }
+        });
+
+        // Signup form submission
+        signupSubmit.addEventListener("click", async () => {
+          const email = document.getElementById("signupEmail").value.trim();
+          const password = document
+            .getElementById("signupPassword")
+            .value.trim();
+          const confirmPassword = document
+            .getElementById("confirmPassword")
+            .value.trim();
+
+          if (!email || !password || !confirmPassword) {
+            showMessage("Please fill in all fields", "error");
+            return;
+          }
+
+          if (!isValidEmail(email)) {
+            showMessage("Please enter a valid email address", "error");
+            return;
+          }
+
+          if (password.length < 6) {
+            showMessage("Password must be at least 6 characters long", "error");
+            return;
+          }
+
+          if (password !== confirmPassword) {
+            showMessage("Passwords do not match", "error");
+            return;
+          }
+
+          signupSubmit.disabled = true;
+          signupSubmit.innerHTML =
+            '<span class="spinner"></span> Creating account...';
+          showMessage("Creating your account...", "info");
+
+          try {
+            const { data, error } = await supabase.auth.signUp({
+              email,
+              password,
+            });
+
+            if (error) throw error;
+
+            showMessage(
+              "Account created successfully! Please check your email to confirm your account.",
+              "success"
+            );
+
+            // Clear form
+            document.getElementById("signupEmail").value = "";
+            document.getElementById("signupPassword").value = "";
+            document.getElementById("confirmPassword").value = "";
+          } catch (error) {
+            showMessage(error.message, "error");
+          } finally {
+            signupSubmit.disabled = false;
+            signupSubmit.innerHTML = "Create Account";
+          }
+        });
+
+        // Forgot password
+        forgotPasswordBtn.addEventListener("click", async () => {
+          const email = document.getElementById("loginEmail").value.trim();
+
+          if (!email) {
+            showMessage("Please enter your email address first", "error");
+            document.getElementById("loginEmail").focus();
+            return;
+          }
+
+          if (!isValidEmail(email)) {
+            showMessage("Please enter a valid email address", "error");
+            return;
+          }
+
+          forgotPasswordBtn.disabled = true;
+          forgotPasswordBtn.innerHTML =
+            '<span class="spinner"></span> Sending...';
+          showMessage("Sending password reset email...", "info");
+
+          try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+              redirectTo: `${window.location.origin}/public/reset-password.html`,
+            });
+
+            if (error) throw error;
+
+            showMessage(
+              "Password reset email sent! Please check your inbox.",
+              "success"
+            );
+          } catch (error) {
+            showMessage(error.message, "error");
+          } finally {
+            forgotPasswordBtn.disabled = false;
+            forgotPasswordBtn.innerHTML = "Forgot Password?";
+          }
+        });
+
+        // Utility functions
+        function showMessage(text, type) {
+          messageDiv.textContent = text;
+          messageDiv.className = `message ${type}`;
+          messageDiv.style.display = "block";
+        }
+
+        function clearMessage() {
+          messageDiv.textContent = "";
+          messageDiv.style.display = "none";
+        }
+
+        function isValidEmail(email) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          return emailRegex.test(email);
+        }
+
+        // Check if user is already logged in
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (user) {
+            window.location.href = "dashboard.html";
+          }
+        });
+
+        // Enter key support
+        document.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            if (isLogin) {
+              loginSubmit.click();
+            } else {
+              signupSubmit.click();
+            }
+          }
+        });
+      });
+    </script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .auth-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 420px;
+        padding: 40px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .auth-header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .auth-header h1 {
+        color: #333;
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .auth-header p {
+        color: #666;
+        font-size: 1rem;
+      }
+
+      .tab-buttons {
+        display: flex;
+        margin-bottom: 30px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 4px;
+      }
+
+      .tab-button {
+        flex: 1;
+        padding: 12px 24px;
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #666;
+      }
+
+      .tab-button.active {
+        background: #667eea;
+        color: white;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+        position: relative;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #333;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      .input-wrapper {
+        position: relative;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 14px 16px;
+        border: 2px solid #e1e5e9;
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: white;
+      }
+
+      .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .form-group input.error {
+        border-color: #e74c3c;
+        box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+      }
+
+      .toggle-password {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        font-size: 1.2rem;
+        user-select: none;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+      }
+
+      .toggle-password:hover {
+        opacity: 1;
+      }
+
+      .password-input {
+        padding-right: 50px !important;
+      }
+
+      .submit-btn {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .submit-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .submit-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .forgot-password {
+        text-align: center;
+        margin-top: 16px;
+      }
+
+      .forgot-password button {
+        background: none;
+        border: none;
+        color: #667eea;
+        text-decoration: underline;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: color 0.2s;
+      }
+
+      .forgot-password button:hover:not(:disabled) {
+        color: #5a67d8;
+      }
+
+      .forgot-password button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: none;
+      }
+
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .message.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      .auth-form {
+        display: none;
+      }
+
+      .auth-form.active {
+        display: block;
+      }
+
+      #loginForm {
+        display: block;
+      }
+
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (max-width: 480px) {
+        .auth-container {
+          padding: 30px 20px;
+          margin: 10px;
+        }
+
+        .auth-header h1 {
+          font-size: 1.8rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="auth-container">
+      <div class="auth-header">
+        <h1>Welcome</h1>
+        <p>Sign in to your account or create a new one</p>
+      </div>
+
+      <div class="tab-buttons">
+        <button class="tab-button active" id="loginTab">Sign In</button>
+        <button class="tab-button" id="signupTab">Sign Up</button>
+      </div>
+
+      <div id="message" class="message"></div>
+
+      <!-- Login Form -->
+      <form class="auth-form" id="loginForm">
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input
+            type="email"
+            id="loginEmail"
+            placeholder="Enter your email"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <div class="input-wrapper">
+            <input
+              type="password"
+              id="loginPassword"
+              class="password-input"
+              placeholder="Enter your password"
+              required
+            />
+            <span class="toggle-password" data-target="loginPassword">👁️</span>
+          </div>
+        </div>
+
+        <button type="button" class="submit-btn" id="loginSubmit">
+          Sign In
+        </button>
+
+        <div class="forgot-password">
+          <button type="button" id="forgotPasswordBtn">Forgot Password?</button>
+        </div>
+      </form>
+
+      <!-- Signup Form -->
+      <form class="auth-form" id="signupForm">
+        <div class="form-group">
+          <label for="signupEmail">Email</label>
+          <input
+            type="email"
+            id="signupEmail"
+            placeholder="Enter your email"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="signupPassword">Password</label>
+          <div class="input-wrapper">
+            <input
+              type="password"
+              id="signupPassword"
+              class="password-input"
+              placeholder="Create a password (min 6 characters)"
+              required
+            />
+            <span class="toggle-password" data-target="signupPassword">👁️</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password</label>
+          <div class="input-wrapper">
+            <input
+              type="password"
+              id="confirmPassword"
+              class="password-input"
+              placeholder="Confirm your password"
+              required
+            />
+            <span class="toggle-password" data-target="confirmPassword"
+              >👁️</span
+            >
+          </div>
+        </div>
+
+        <button type="button" class="submit-btn" id="signupSubmit">
+          Create Account
+        </button>
+      </form>
+    </div>
+  </body>
+</html>

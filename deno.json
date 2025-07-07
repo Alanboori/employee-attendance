@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "start": "deno run -A supabase/functions/auth/index.ts"
+  },
+  "fmt": {
+    "lineWidth": 80,
+    "useTabs": false,
+    "indentWidth": 2,
+    "semiColons": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}

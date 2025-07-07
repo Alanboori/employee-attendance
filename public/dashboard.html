@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Attendance Dashboard</title>
+    <script type="module">
+      import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+      const SUPABASE_URL = "https://qxpdhbeewuvjvleovtpf.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "sb_publishable_X37K3uDPAQjtYxX1dH0rZw_GPWX8qmv";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      // Company location coordinates (replace with your actual location)
+      const COMPANY_LATITUDE = 23.663050192110113;
+      const COMPANY_LONGITUDE = 58.193648303957;
+      const ALLOWED_RADIUS_METERS = 100; // 100 meters radius
+
+      let currentUser = null;
+
+      function getDistanceMeters(lat1, lon1, lat2, lon2) {
+        const toRad = (deg) => (deg * Math.PI) / 180;
+        const R = 6371000; // Earth radius in meters
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) *
+            Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      }
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (!user || error) {
+          window.location.href = "index.html";
+          return;
+        }
+
+        currentUser = user;
+        document.getElementById("userEmail").textContent = user.email;
+
+        // Show admin panel button ONLY for admin by their emails.
+        if (user.email === "admin_emails") {
+          const adminBtn = document.createElement("button");
+          adminBtn.textContent = "🔧 Admin Panel";
+          adminBtn.className = "admin-btn";
+          adminBtn.onclick = () => {
+            window.location.href = "admin.html";
+          };
+          document.getElementById("adminContainer").appendChild(adminBtn);
+        }
+
+        function showMessage(text, color = "black") {
+          const msg = document.getElementById("message");
+          msg.textContent = text;
+          msg.className = `message ${
+            color === "red" ? "error" : color === "green" ? "success" : "info"
+          }`;
+          msg.style.display = "block";
+
+          // Auto-hide message after 5 seconds
+          setTimeout(() => {
+            msg.style.display = "none";
+          }, 5000);
+        }
+
+        async function saveAttendance(type, latitude, longitude, accuracy) {
+          const { error } = await supabase.from("attendance_records").insert([
+            {
+              user_id: currentUser.id,
+              user_email: currentUser.email,
+              type: type.toLowerCase().replace(" ", "-"), // e.g. "check-in" or "check-out"
+              latitude,
+              longitude,
+              accuracy,
+            },
+          ]);
+          return error;
+        }
+
+        async function handleAttendance(type) {
+          if (!navigator.geolocation) {
+            showMessage("Geolocation not supported by your browser.", "red");
+            return;
+          }
+
+          const button =
+            type === "Check In"
+              ? document.getElementById("checkIn")
+              : document.getElementById("checkOut");
+          button.disabled = true;
+          button.innerHTML = `<span class="spinner"></span> ${type}ing...`;
+
+          showMessage("Getting location...");
+
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const { latitude, longitude, accuracy } = position.coords;
+              const distance = getDistanceMeters(
+                latitude,
+                longitude,
+                COMPANY_LATITUDE,
+                COMPANY_LONGITUDE
+              );
+
+              if (distance > ALLOWED_RADIUS_METERS) {
+                showMessage(
+                  `You are too far from the company location (${Math.round(
+                    distance
+                  )} meters). Cannot ${type}.`,
+                  "red"
+                );
+                return;
+              }
+
+              const error = await saveAttendance(
+                type,
+                latitude,
+                longitude,
+                accuracy
+              );
+              if (error) {
+                showMessage("Error saving attendance: " + error.message, "red");
+              } else {
+                showMessage(
+                  `${type} successful at ${new Date().toLocaleTimeString()}`,
+                  "green"
+                );
+              }
+            },
+            (error) => {
+              showMessage("Error getting location: " + error.message, "red");
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+
+          // Reset button after 3 seconds
+          setTimeout(() => {
+            button.disabled = false;
+            button.innerHTML =
+              type === "Check In" ? "✅ Check In" : "🕔 Check Out";
+          }, 3000);
+        }
+
+        document.getElementById("checkIn").onclick = () =>
+          handleAttendance("Check In");
+        document.getElementById("checkOut").onclick = () =>
+          handleAttendance("Check Out");
+
+        document.getElementById("logoutBtn").onclick = async () => {
+          document.getElementById("logoutBtn").disabled = true;
+          document.getElementById("logoutBtn").innerHTML =
+            '<span class="spinner"></span> Logging out...';
+
+          await supabase.auth.signOut();
+          window.location.href = "index.html";
+        };
+
+        // Update current time display
+        function updateTime() {
+          const now = new Date();
+          const timeString = now.toLocaleTimeString();
+          const dateString = now.toLocaleDateString();
+          document.getElementById(
+            "currentTime"
+          ).textContent = `${timeString} - ${dateString}`;
+        }
+
+        updateTime();
+        setInterval(updateTime, 1000);
+      });
+    </script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .dashboard-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 400px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        text-align: center;
+      }
+
+      .dashboard-header {
+        margin-bottom: 20px;
+      }
+
+      .dashboard-header h1 {
+        color: #333;
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .user-info {
+        background: rgba(102, 126, 234, 0.1);
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(102, 126, 234, 0.2);
+      }
+
+      .user-info h2 {
+        color: #333;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .user-email {
+        color: #667eea;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      .time-display {
+        background: rgba(118, 75, 162, 0.1);
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(118, 75, 162, 0.2);
+      }
+
+      .time-display .current-time {
+        color: #764ba2;
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      .attendance-buttons {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .attendance-btn {
+        flex: 1;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+
+      .attendance-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+      }
+
+      .attendance-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      #checkIn {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+      }
+
+      #checkOut {
+        background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+        color: white;
+      }
+
+      .admin-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 16px;
+      }
+
+      .admin-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+      }
+
+      .logout-btn {
+        background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin: 0 auto;
+      }
+
+      .logout-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(245, 101, 101, 0.3);
+      }
+
+      .logout-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .message {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: none;
+        border: 1px solid transparent;
+      }
+
+      .message.success {
+        background: rgba(72, 187, 120, 0.1);
+        color: #2f855a;
+        border-color: rgba(72, 187, 120, 0.2);
+      }
+
+      .message.error {
+        background: rgba(245, 101, 101, 0.1);
+        color: #c53030;
+        border-color: rgba(245, 101, 101, 0.2);
+      }
+
+      .message.info {
+        background: rgba(102, 126, 234, 0.1);
+        color: #3182ce;
+        border-color: rgba(102, 126, 234, 0.2);
+      }
+
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .location-info {
+        background: rgba(255, 193, 7, 0.1);
+        padding: 8px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(255, 193, 7, 0.2);
+      }
+
+      .location-info small {
+        color: #b7791f;
+        font-size: 0.8rem;
+      }
+
+      @media (max-width: 480px) {
+        .dashboard-container {
+          padding: 20px 16px;
+          margin: 16px;
+        }
+
+        .attendance-buttons {
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .dashboard-header h1 {
+          font-size: 1.5rem;
+        }
+
+        .user-info h2 {
+          font-size: 0.95rem;
+        }
+
+        .user-email {
+          font-size: 0.85rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="dashboard-container">
+      <div class="dashboard-header">
+        <h1>📊 Attendance Dashboard</h1>
+      </div>
+
+      <div class="user-info">
+        <h2>Welcome back!</h2>
+        <div class="user-email" id="userEmail"></div>
+      </div>
+
+      <div class="time-display">
+        <div class="current-time" id="currentTime"></div>
+      </div>
+
+      <div class="location-info">
+        <small>📍 Location verification required within 100m of office</small>
+      </div>
+
+      <div id="message" class="message"></div>
+
+      <div class="attendance-buttons">
+        <button class="attendance-btn" id="checkIn">✅ Check In</button>
+        <button class="attendance-btn" id="checkOut">🕔 Check Out</button>
+      </div>
+
+      <div id="adminContainer"></div>
+
+      <button class="logout-btn" id="logoutBtn">🚪 Logout</button>
+    </div>
+  </body>
+</html>
